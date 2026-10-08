@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>M4 · Dalla segnalazione alla risposta</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#e9edf2;font-family:"Segoe UI",Arial,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh}
+  #game{position:relative;width:800px;height:550px;background:#f7f9fb;border-radius:10px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.15)}
+  header{height:56px;background:#1f3a5f;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+  header h1{font-size:18px;font-weight:600}
+  header .score{font-size:13px;background:rgba(255,255,255,.15);padding:5px 12px;border-radius:14px}
+  .case{margin:12px 20px 8px;background:#fff;border-left:6px solid #0f8b8d;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.45;color:#1f2d3d}
+  .hint{margin:0 20px 6px;font-size:12px;color:#5b6f84}
+  #list{margin:0 20px;list-style:none}
+  .step{display:flex;align-items:center;gap:10px;background:#fff;border:2px solid #b8c4d2;border-radius:8px;padding:6px 10px;margin-bottom:5px;font-size:13px;color:#1f2d3d;cursor:grab;user-select:none;height:40px}
+  .step.drag{opacity:.4}
+  .step.over{border-color:#0f8b8d;border-style:dashed}
+  .step .n{flex:0 0 24px;height:24px;border-radius:50%;background:#1f3a5f;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .step .t{flex:1}
+  .step .mv{display:flex;gap:4px}
+  .step .mv button{width:26px;height:24px;border:1px solid #b8c4d2;background:#f2f5f8;border-radius:4px;cursor:pointer;font-size:12px;color:#1f3a5f}
+  .step.ok{border-color:#2e7d32;background:#eef7ee}
+  .step.ko{border-color:#c62828;background:#fdecea}
+  #check{position:absolute;right:20px;bottom:14px;background:#0f8b8d;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:14px;cursor:pointer}
+  #msg{position:absolute;left:20px;bottom:16px;font-size:12.5px;color:#33475b;width:580px}
+  #overlay{position:absolute;inset:0;z-index:100;background:#f7f9fb;display:none;flex-direction:column;padding:16px 24px}
+  #overlay h2{font-size:19px;color:#1f3a5f;margin-bottom:8px}
+  #expl{list-style:none;overflow:auto;height:420px}
+  #expl li{background:#fff;border-left:5px solid #2e7d32;border-radius:6px;padding:6px 10px;margin-bottom:5px;font-size:12px;line-height:1.38;color:#1f2d3d}
+  #expl li.wrongpos{border-left-color:#c62828}
+  #expl b{color:#1f3a5f}
+  #overlay button{position:absolute;right:24px;bottom:14px;background:#0f8b8d;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:14px;cursor:pointer}
+  header .right{display:flex;align-items:center;gap:8px}
+  .hb{background:transparent;border:1px solid rgba(255,255,255,.65);color:#fff;border-radius:6px;padding:5px 11px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .hb:hover{background:rgba(255,255,255,.18)}
+</style>
+</head>
+<body>
+<div id="game">
+  <header><h1>Dalla segnalazione alla risposta</h1><div class="right"><div class="score">Tentativo <span id="att">1</span></div><button type="button" class="hb" onclick="init()">Ricomincia</button><button type="button" class="hb" onclick="window.close()">Torna al corso</button></div></header>
+  <div class="case"><b>Il caso.</b> Un lavoratore ti racconta che, nei turni con più ordini, i colleghi coprono il sensore del robot collaborativo per evitare che rallenti. Come rappresentante dei lavoratori per la sicurezza, metti in ordine i passi che segui.</div>
+  <div class="hint">Trascina i passi oppure usa le frecce, poi premi "Verifica l'ordine".</div>
+  <ul id="list"></ul>
+  <div id="msg"></div>
+  <button id="check">Verifica l'ordine</button>
+  <div id="overlay">
+    <h2 id="outTitle"></h2>
+    <ul id="expl"></ul>
+    <button onclick="init()">Ricomincia</button>
+  </div>
+</div>
+<script>
+const STEPS=[
+ {t:"Ascoltare il lavoratore e annotare data, luogo, sistema e fatto",e:"Un'osservazione annotata con data e circostanze è la base di ogni passo successivo; la riservatezza di chi segnala va tutelata."},
+ {t:"Verificare se il rischio compare nel documento di valutazione",e:"L'RLS ha accesso al DVR: controllare se il rischio di aggiramento e le misure per evitarlo sono già valutati rende la richiesta più precisa."},
+ {t:"Comunicare per iscritto il rischio al datore di lavoro e all'RSPP",e:"L'RLS avverte il responsabile dell'azienda dei rischi individuati. Lo scritto lascia traccia e permette di chiedere una risposta."},
+ {t:"Chiedere che il tema sia inserito nella riunione periodica",e:"La riunione periodica è la sede in cui datore di lavoro, RSPP, medico competente e RLS discutono il rischio, con verbale. Le proposte si possono portare anche prima della riunione: i passi 4 e 5 valgono in entrambi gli ordini."},
+ {t:"Proporre misure concrete: taratura del sensore, ritmi, addestramento",e:"L'RLS formula proposte: qui la causa è la fretta, quindi le misure riguardano i ritmi oltre al sensore. La decisione spetta al datore di lavoro."},
+ {t:"Verificare la risposta entro il termine richiesto",e:"Si controlla che le misure siano state adottate e funzionino in reparto, sentendo di nuovo i lavoratori."},
+ {t:"Ricorrere alle autorità competenti se le misure restano inadeguate",e:"Il ricorso alle autorità (art. 50 del D.Lgs. 81/2008) è l'ultimo passo, dopo il percorso interno documentato."}
+];
+let order,att,dragI=null;
+const $=id=>document.getElementById(id);
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function init(){
+  do{order=shuffle(STEPS.map((_,i)=>i));}while(order.every((v,i)=>v===i));
+  att=1;$('att').textContent=att;$('overlay').style.display='none';$('msg').textContent='';render();
+}
+function render(){
+  const L=$('list');L.innerHTML='';
+  order.forEach((s,i)=>{
+    const li=document.createElement('li');li.className='step';li.draggable=true;
+    li.innerHTML='<span class="n">'+(i+1)+'</span><span class="t"></span><span class="mv"><button title="Su">▲</button><button title="Giù">▼</button></span>';
+    li.querySelector('.t').textContent=STEPS[s].t;
+    const [up,dn]=li.querySelectorAll('button');
+    up.onclick=e=>{e.stopPropagation();move(i,i-1);};dn.onclick=e=>{e.stopPropagation();move(i,i+1);};
+    li.addEventListener('dragstart',()=>{dragI=i;li.classList.add('drag');});
+    li.addEventListener('dragend',()=>li.classList.remove('drag'));
+    li.addEventListener('dragover',e=>{e.preventDefault();li.classList.add('over');});
+    li.addEventListener('dragleave',()=>li.classList.remove('over'));
+    li.addEventListener('drop',e=>{e.preventDefault();li.classList.remove('over');if(dragI!==null)move(dragI,i);dragI=null;});
+    L.appendChild(li);
+  });
+}
+function move(a,b){if(b<0||b>=order.length||a===b)return;const [x]=order.splice(a,1);order.splice(b,0,x);render();}
+$('check').onclick=()=>{
+  const items=document.querySelectorAll('.step');let right=0;
+  const swap45=order[3]===4&&order[4]===3;
+  order.forEach((s,i)=>{const ok=s===i||(swap45&&(i===3||i===4));if(ok)right++;items[i].classList.add(ok?'ok':'ko');});
+  if(right===STEPS.length){end(true);return;}
+  $('msg').textContent=right+' passi su 7 sono al posto giusto. Sposta quelli in rosso e verifica di nuovo.';
+  setTimeout(()=>{document.querySelectorAll('.step').forEach(s=>s.classList.remove('ok','ko'));},1600);
+  att++;$('att').textContent=att;
+  if(att>3)end(false);
+};
+function end(win){
+  $('outTitle').textContent=win?('Sequenza corretta al tentativo '+att):'Ecco la sequenza corretta';
+  const E=$('expl');E.innerHTML='';
+  STEPS.forEach((s,i)=>{const li=document.createElement('li');li.innerHTML='<b>'+(i+1)+'. </b><b></b><br>';li.children[1].textContent=s.t;li.appendChild(document.createTextNode(s.e));E.appendChild(li);});
+  $('overlay').style.display='flex';
+}
+init();
+</script>
+</body>
+</html>
